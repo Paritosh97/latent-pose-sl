@@ -3,21 +3,22 @@
 # Author: maajor <info@ma-yidong.com>
 # Date : 2020-05-23
 #
-# Code largely adoped from VPoser in SMPLify-X https://github.com/nghorbani/human_body_prior
+# Code largely adopted from VPoser in SMPLify-X https://github.com/nghorbani/human_body_prior
 # 
 # Expressive Body Capture: 3D Hands, Face, and Body from a Single Image <https://arxiv.org/abs/1904.05866>
 #
 # Original Code Developed by:
 # Nima Ghorbani <https://nghorbani.github.io/>
-# Vassilis Choutas <https://ps.is.tuebingen.mpg.de/employees/vchoutas> for ContinousRotReprDecoder
+# Vassilis Choutas <https://ps.is.tuebingen.mpg.de/employees/vchoutas> for ContinuousRotReprDecoder
 
 __all__ = []
 
-import os, shutil
+import os
+import shutil
+import argparse
 from datetime import datetime
 
 import numpy as np
-
 import torch
 from torch import nn, optim
 from torch.nn import functional as F
@@ -39,16 +40,16 @@ class VPoserTrainer:
 
         self.comp_device = torch.device("cuda")
 
-        ds_train = AnimationDS(work_dir+"_train.pt")
+        ds_train = AnimationDS(work_dir + "_train.pt")
         self.ds_train = DataLoader(ds_train, batch_size=self.batch_size, shuffle=True, drop_last=True)
 
-        ds_val = AnimationDS(work_dir+"_val.pt")
+        ds_val = AnimationDS(work_dir + "_val.pt")
         self.ds_val = DataLoader(ds_val, batch_size=self.batch_size, shuffle=True, drop_last=True)
 
-        ds_test = AnimationDS(work_dir+"_test.pt")
+        ds_test = AnimationDS(work_dir + "_test.pt")
         self.ds_test = DataLoader(ds_test, batch_size=self.batch_size, shuffle=True, drop_last=True)
 
-        print('Train dataset size %.2f M' % (len(self.ds_train.dataset)*1e-6))
+        print('Train dataset size %.2f M' % (len(self.ds_train.dataset) * 1e-6))
         print('Validation dataset size %d' % len(self.ds_val.dataset))
         print('Test dataset size %d' % len(self.ds_test.dataset))
 
@@ -71,7 +72,7 @@ class VPoserTrainer:
 
         self.ske = Skeleton(skeleton_path=skeleton_path)
         self.ske.to(self.comp_device)
-        self.default_trans = torch.zeros(3).view(1,3).to(self.comp_device)
+        self.default_trans = torch.zeros(3).view(1, 3).to(self.comp_device)
 
     def train(self):
         self.vposer_model.train()
@@ -94,7 +95,7 @@ class VPoserTrainer:
         train_loss_dict = {k: v / len(self.ds_train) for k, v in train_loss_dict.items()}
         return train_loss_dict
 
-    def evaluate(self, split_name= 'vald'):
+    def evaluate(self, split_name='vald'):
         self.vposer_model.eval()
         eval_loss_dict = {}
         data = self.ds_val if split_name == 'vald' else self.ds_test
@@ -119,7 +120,7 @@ class VPoserTrainer:
 
         batchnum = prec.shape[0]
 
-        trans = self.default_trans.repeat(batchnum,1)
+        trans = self.default_trans.repeat(batchnum, 1)
 
         joint_rec = self.ske(prec, trans)
         joint_rig = self.ske(porig, trans)
@@ -132,20 +133,8 @@ class VPoserTrainer:
             scale=torch.tensor(np.ones([self.batch_size, self.latentD]), requires_grad=False).to(device).type(dtype))
         loss_kl = 5e-3 * torch.mean(torch.sum(torch.distributions.kl.kl_divergence(q_z, p_z), dim=[1]))
 
-        ## Archive of losses
-        # loss_rec = (1. - self.ps.kl_coef) * torch.mean(torch.sum(torch.pow(dorig - prec, 2), dim=[1, 2, 3]))
-        # R = prec.view([batch_size, n_joints, 3, 3])
-        # R_T = torch.transpose(R, 2, 3)
-        # R_eye = torch.tensor(np.tile(np.eye(3,3).reshape(1,1,3,3), [batch_size, n_joints, 1, 1]), dtype=dtype, requires_grad = False).to(device)
-        # loss_ortho = self.ps.ortho_coef * torch.mean(torch.sum(torch.pow(torch.matmul(R, R_T) - R_eye,2),dim=[1,2,3]))
-        #
-        # det_R = torch.transpose(torch.stack([determinant_3d(R[:,jIdx,...]) for jIdx in range(n_joints)]),0,1)
-        #
-        # one = torch.tensor(np.ones([batch_size, n_joints]), dtype = dtype, requires_grad = False).to(device)
-        # loss_det1 = self.ps.det1_coef * torch.mean(torch.sum(torch.abs(det_R - one), dim=[1]))
-
         loss_dict = {'loss_kl': loss_kl,
-                    'loss_joint_rec': loss_joint_rec
+                     'loss_joint_rec': loss_joint_rec
                      }
 
         if self.vposer_model.training and self.epochs_completed < 10:
@@ -158,7 +147,8 @@ class VPoserTrainer:
 
     def perform_training(self, num_epochs=None, message=None):
         starttime = datetime.now().replace(microsecond=0)
-        if num_epochs is None: num_epochs = 500
+        if num_epochs is None:
+            num_epochs = 500
 
         print(
             'Started Training at %s for %d epochs' % (datetime.strftime(starttime, '%Y-%m-%d_%H:%M:%S'), num_epochs))
@@ -197,7 +187,6 @@ class VPoserTrainer:
 
 def run_vposer_trainer(datapath, bodymodel_path):
     vp_trainer = VPoserTrainer(datapath, bodymodel_path)
-
     vp_trainer.perform_training()
 
     test_loss_dict = vp_trainer.evaluate(split_name='test')
@@ -205,4 +194,11 @@ def run_vposer_trainer(datapath, bodymodel_path):
     print('Final loss on test set is %s' % (' | '.join(['%s = %.2e' % (k, v) for k, v in test_loss_dict.items()])))
 
 if __name__ == '__main__':
-    run_vposer_trainer("data/train/pose", "data/skeleton.pt")
+    parser = argparse.ArgumentParser(description='Train VPoser model')
+    parser.add_argument('--datapath', type=str, required=True, help='Path to the dataset')
+    parser.add_argument('--skeletonpath', type=str, required=True, help='Path to the skeleton file')
+    parser.add_argument('--epochs', type=int, default=500, help='Number of training epochs')
+    
+    args = parser.parse_args()
+
+    run_vposer_trainer(args.datapath, args.skeletonpath)
