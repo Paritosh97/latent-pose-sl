@@ -25,9 +25,9 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader
 import tqdm
 
-from .vposer import VPoser
-from .skeleton import Skeleton
-from .geoutils import *
+from vposer import VPoser
+from skeleton import Skeleton
+from geoutils import *
 
 class VPoserTrainer:
 
