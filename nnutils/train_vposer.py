@@ -1,27 +1,11 @@
 # -*- coding: utf-8 -*-
-#
-# Author: maajor <info@ma-yidong.com>
-# Date : 2020-05-23
-#
-# Code largely adopted from VPoser in SMPLify-X https://github.com/nghorbani/human_body_prior
-# 
-# Expressive Body Capture: 3D Hands, Face, and Body from a Single Image <https://arxiv.org/abs/1904.05866>
-#
-# Original Code Developed by:
-# Nima Ghorbani <https://nghorbani.github.io/>
-# Vassilis Choutas <https://ps.is.tuebingen.mpg.de/employees/vchoutas> for ContinuousRotReprDecoder
-
-__all__ = []
-
 import os
-import shutil
 import argparse
 from datetime import datetime
 
 import numpy as np
 import torch
-from torch import nn, optim
-from torch.nn import functional as F
+from torch import optim
 from torch.utils.data import DataLoader
 import tqdm
 import torch.cuda.amp as amp  # For mixed precision
@@ -32,15 +16,17 @@ from geoutils import *
 
 class VPoserTrainer:
 
-    def __init__(self, work_dir, skeleton_path):
+    def __init__(self, work_dir, skeleton_path, checkpoint_dir='checkpoints', checkpoint_file=None):
         from dataloader import AnimationDS
 
         self.batch_size = 512  # Adjusted batch size for better GPU utilization
-
         self.pt_dtype = torch.float32
-
         self.comp_device = torch.device("cuda")
 
+        self.checkpoint_dir = checkpoint_dir
+        self.checkpoint_file = checkpoint_file
+
+        # DataLoader setup
         ds_train = AnimationDS(work_dir + "_train.pt")
         self.ds_train = DataLoader(ds_train, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=4, pin_memory=True)
 
@@ -56,31 +42,48 @@ class VPoserTrainer:
 
         data_shape = list(ds_val[0]['pose_aa'].shape)
         self.latentD = 32
-        self.vposer_model = VPoser(num_neurons=512, latentD=self.latentD, data_shape=data_shape,
-                                   use_cont_repr=True)
-
+        self.vposer_model = VPoser(num_neurons=512, latentD=self.latentD, data_shape=data_shape, use_cont_repr=True)
         self.vposer_model.to(self.comp_device)
 
         varlist = [var[1] for var in self.vposer_model.named_parameters()]
-
         self.optimizer = optim.AdamW(varlist, lr=1e-2, weight_decay=0.0001)  # Using AdamW
-
-        self.best_loss_total = np.inf
-        self.epochs_completed = 0
-        self.best_model_fname = None
-        if self.best_model_fname is not None:
-            self.vposer_model.load_state_dict(torch.load(self.best_model_fname, map_location=self.comp_device))
 
         self.ske = Skeleton(skeleton_path=skeleton_path)
         self.ske.to(self.comp_device)
         self.default_trans = torch.zeros(3).view(1, 3).to(self.comp_device)
+
+        self.best_loss_total = np.inf
+        self.epochs_completed = 0
+
+        # Load checkpoint if provided
+        if checkpoint_file:
+            self.load_checkpoint(checkpoint_file)
+
+    def save_checkpoint(self, epoch, best_loss_total):
+        checkpoint = {
+            'epoch': epoch,
+            'model_state_dict': self.vposer_model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'best_loss_total': best_loss_total,
+        }
+        checkpoint_path = os.path.join(self.checkpoint_dir, f'checkpoint_epoch_{epoch}.pt')
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
+        torch.save(checkpoint, checkpoint_path)
+        print(f"Checkpoint saved at {checkpoint_path}")
+
+    def load_checkpoint(self, checkpoint_file):
+        checkpoint = torch.load(checkpoint_file, map_location=self.comp_device)
+        self.vposer_model.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.best_loss_total = checkpoint['best_loss_total']
+        self.epochs_completed = checkpoint['epoch']
+        print(f"Resumed from checkpoint {checkpoint_file} at epoch {self.epochs_completed}")
 
     def train(self):
         self.vposer_model.train()
         save_every_it = len(self.ds_train) / 4
         train_loss_dict = {}
 
-        # Initialize GradScaler for mixed precision
         scaler = amp.GradScaler()
 
         for it, dorig in enumerate(self.ds_train):
@@ -92,10 +95,7 @@ class VPoserTrainer:
                 drec = self.vposer_model(dorig['pose_aa'], output_type='aa')
                 loss_total, cur_loss_dict = self.compute_loss(dorig, drec)
 
-            # Backward pass with scaled gradients
             scaler.scale(loss_total).backward()
-
-            # Step optimizer with scaled gradients
             scaler.step(self.optimizer)
             scaler.update()
 
@@ -127,11 +127,7 @@ class VPoserTrainer:
         prec = drec['pose_aa'].to(self.comp_device)
         porig = dorig['pose_aa'].to(self.comp_device)
 
-        device = dorig['pose_aa'].device
-        dtype = dorig['pose_aa'].dtype
-
         batchnum = prec.shape[0]
-
         trans = self.default_trans.repeat(batchnum, 1)
 
         joint_rec = self.ske(prec, trans)
@@ -139,15 +135,12 @@ class VPoserTrainer:
 
         loss_joint_rec = (1. - 5e-3) * torch.mean(torch.abs(joint_rec - joint_rig))
 
-        # KL loss
         p_z = torch.distributions.normal.Normal(
-            loc=torch.tensor(np.zeros([self.batch_size, self.latentD]), requires_grad=False).to(device).type(dtype),
-            scale=torch.tensor(np.ones([self.batch_size, self.latentD]), requires_grad=False).to(device).type(dtype))
+            loc=torch.zeros([self.batch_size, self.latentD], requires_grad=False).to(prec.device),
+            scale=torch.ones([self.batch_size, self.latentD], requires_grad=False).to(prec.device))
         loss_kl = 5e-3 * torch.mean(torch.sum(torch.distributions.kl.kl_divergence(q_z, p_z), dim=[1]))
 
-        loss_dict = {'loss_kl': loss_kl,
-                     'loss_joint_rec': loss_joint_rec
-                     }
+        loss_dict = {'loss_kl': loss_kl, 'loss_joint_rec': loss_joint_rec}
 
         if self.vposer_model.training and self.epochs_completed < 10:
             loss_dict['loss_pose_rec'] = (1. - 5e-3) * torch.mean(torch.sum(torch.pow(porig - prec, 2), dim=[1, 2, 3]))
@@ -168,14 +161,14 @@ class VPoserTrainer:
         prev_lr = np.inf
         scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=int(num_epochs // 3), gamma=0.5)
         self.best_loss_total = np.inf
-        loop = tqdm.tqdm(range(1, num_epochs + 1))
+        loop = tqdm.tqdm(range(self.epochs_completed + 1, num_epochs + 1))
         for epoch_num in loop:
             print("Started Training Epoch {}".format(epoch_num))
             cur_lr = self.optimizer.param_groups[0]['lr']
             if cur_lr != prev_lr:
                 print('--- Optimizer learning rate changed from %.2e to %.2e ---' % (prev_lr, cur_lr))
                 prev_lr = cur_lr
-            self.epochs_completed += 1
+            self.epochs_completed = epoch_num
             train_loss_dict = self.train()
             eval_loss_dict = self.evaluate()
             scheduler.step()
@@ -185,7 +178,6 @@ class VPoserTrainer:
                 if eval_loss_dict['loss_total'] < self.best_loss_total:
                     self.best_model_fname = os.path.join('snapshots', 'E%03d.pt' % (self.epochs_completed))
                     
-                    # Ensure the directory exists
                     output_dir = os.path.dirname(self.best_model_fname)
                     if not os.path.exists(output_dir):
                         os.makedirs(output_dir)
@@ -196,14 +188,17 @@ class VPoserTrainer:
                 else:
                     print("Loss {} is larger, skip".format(eval_loss_dict['loss_total']))
 
+                # Save a checkpoint after each epoch
+                self.save_checkpoint(epoch_num, self.best_loss_total)
+
         endtime = datetime.now().replace(microsecond=0)
 
         print('Finished Training at %s\n' % (datetime.strftime(endtime, '%Y-%m-%d_%H:%M:%S')))
         print('Training done in %s! Best val total loss achieved: %.2e\n' % (endtime - starttime, self.best_loss_total))
         print('Best model path: %s\n' % self.best_model_fname)
 
-def run_vposer_trainer(datapath, bodymodel_path):
-    vp_trainer = VPoserTrainer(datapath, bodymodel_path)
+def run_vposer_trainer(datapath, bodymodel_path, checkpoint_dir='checkpoints', checkpoint_file=None):
+    vp_trainer = VPoserTrainer(datapath, bodymodel_path, checkpoint_dir=checkpoint_dir, checkpoint_file=checkpoint_file)
     vp_trainer.perform_training()
 
     test_loss_dict = vp_trainer.evaluate(split_name='test')
@@ -215,7 +210,9 @@ if __name__ == '__main__':
     parser.add_argument('--datapath', type=str, required=True, help='Path to the dataset')
     parser.add_argument('--skeletonpath', type=str, required=True, help='Path to the skeleton file')
     parser.add_argument('--epochs', type=int, default=500, help='Number of training epochs')
+    parser.add_argument('--checkpoint_dir', type=str, default='checkpoints', help='Directory to save checkpoints')
+    parser.add_argument('--checkpoint_file', type=str, default=None, help='Checkpoint file to resume training from')
     
     args = parser.parse_args()
 
-    run_vposer_trainer(args.datapath, args.skeletonpath)
+    run_vposer_trainer(args.datapath, args.skeletonpath, checkpoint_dir=args.checkpoint_dir, checkpoint_file=args.checkpoint_file)
