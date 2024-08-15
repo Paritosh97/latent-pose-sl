@@ -32,7 +32,7 @@ from geoutils import *
 class VPoserTrainer:
 
     def __init__(self, work_dir, skeleton_path):
-        from .dataloader import AnimationDS
+        from dataloader import AnimationDS
 
         self.batch_size = 10000
 
