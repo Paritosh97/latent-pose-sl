@@ -10,9 +10,9 @@ import pickle
 import torch
 import numpy as np
 
-from .skeleton import Skeleton
-from .dataloader import AnimationDS
-from .vposer import VPoser
+from skeleton import Skeleton
+from dataloader import AnimationDS
+from vposer import VPoser
 
 
 ds_train = AnimationDS("data/train/pose_train.pt")

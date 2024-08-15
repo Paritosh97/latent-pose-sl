@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import Dataset
 
 import numpy as np
-from .vposer import VPoser
+from vposer import VPoser
 
 class AnimationDS(Dataset):
     def __init__(self, dataset_dir):

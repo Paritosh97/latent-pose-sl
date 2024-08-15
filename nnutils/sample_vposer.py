@@ -7,8 +7,8 @@
 
 import torch
 import numpy as np
-from .skeleton import Skeleton
-from .vposer import VPoser
+from skeleton import Skeleton
+from vposer import VPoser
 import time
 import pickle
 

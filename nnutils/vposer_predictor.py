@@ -7,8 +7,8 @@
 
 import torch
 from torch import nn
-from .vposer import VPoser
-from .skeleton import Skeleton
+from vposer import VPoser
+from skeleton import Skeleton
 
 class VPoserPredictor(nn.Module):
 
