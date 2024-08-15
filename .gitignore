@@ -136,3 +136,5 @@ snapshots/
 *.blend1
 joints.pkl
 pose.pkl
+
+.vscode/

@@ -13,16 +13,22 @@ import torch.nn.functional as F
 import pickle
 import time
 
-from nnutils.vposer_predictor import VPoserPredictor
-from nnutils.vposer import VPoser
-from nnutils.geoutils import *
+import sys
+import os
+
+# Add the parent directory (latent-pose-sl) to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'nnutils')))
+
+from vposer_predictor import VPoserPredictor
+from vposer import VPoser
+from geoutils import *
 
 app = Flask(__name__)
 
 device = torch.device("cpu")
 
-SKELETON = "data/skeleton.pt"
-VPOSER   = "model/vposer.pt"
+SKELETON = "skeleton.pt"
+VPOSER   = "vposer_sl.pt"
 model = VPoserPredictor(skeleton_path=SKELETON, vposer_path=VPOSER)
 model.to(device)
 optimizer = optim.Adam([model.pose_embedding, model.global_trans], lr=3e-1)
