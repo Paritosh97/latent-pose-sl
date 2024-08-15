@@ -24,6 +24,7 @@ from torch import nn, optim
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 import tqdm
+import torch.cuda.amp as amp  # For mixed precision
 
 from vposer import VPoser
 from skeleton import Skeleton
@@ -34,20 +35,20 @@ class VPoserTrainer:
     def __init__(self, work_dir, skeleton_path):
         from dataloader import AnimationDS
 
-        self.batch_size = 10000
+        self.batch_size = 512  # Adjusted batch size for better GPU utilization
 
         self.pt_dtype = torch.float32
 
         self.comp_device = torch.device("cuda")
 
         ds_train = AnimationDS(work_dir + "_train.pt")
-        self.ds_train = DataLoader(ds_train, batch_size=self.batch_size, shuffle=True, drop_last=True)
+        self.ds_train = DataLoader(ds_train, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=4, pin_memory=True)
 
         ds_val = AnimationDS(work_dir + "_val.pt")
-        self.ds_val = DataLoader(ds_val, batch_size=self.batch_size, shuffle=True, drop_last=True)
+        self.ds_val = DataLoader(ds_val, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=4, pin_memory=True)
 
         ds_test = AnimationDS(work_dir + "_test.pt")
-        self.ds_test = DataLoader(ds_test, batch_size=self.batch_size, shuffle=True, drop_last=True)
+        self.ds_test = DataLoader(ds_test, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=4, pin_memory=True)
 
         print('Train dataset size %.2f M' % (len(self.ds_train.dataset) * 1e-6))
         print('Validation dataset size %d' % len(self.ds_val.dataset))
@@ -62,7 +63,7 @@ class VPoserTrainer:
 
         varlist = [var[1] for var in self.vposer_model.named_parameters()]
 
-        self.optimizer = optim.Adam(varlist, lr=1e-2, weight_decay=0.0001)
+        self.optimizer = optim.AdamW(varlist, lr=1e-2, weight_decay=0.0001)  # Using AdamW
 
         self.best_loss_total = np.inf
         self.epochs_completed = 0
@@ -78,14 +79,25 @@ class VPoserTrainer:
         self.vposer_model.train()
         save_every_it = len(self.ds_train) / 4
         train_loss_dict = {}
+
+        # Initialize GradScaler for mixed precision
+        scaler = amp.GradScaler()
+
         for it, dorig in enumerate(self.ds_train):
             dorig = {k: dorig[k].to(self.comp_device) for k in dorig.keys()}
-
+            
             self.optimizer.zero_grad()
-            drec = self.vposer_model(dorig['pose_aa'], output_type='aa')
-            loss_total, cur_loss_dict = self.compute_loss(dorig, drec)
-            loss_total.backward()
-            self.optimizer.step()
+
+            with amp.autocast():  # Enable mixed precision
+                drec = self.vposer_model(dorig['pose_aa'], output_type='aa')
+                loss_total, cur_loss_dict = self.compute_loss(dorig, drec)
+
+            # Backward pass with scaled gradients
+            scaler.scale(loss_total).backward()
+
+            # Step optimizer with scaled gradients
+            scaler.step(self.optimizer)
+            scaler.update()
 
             train_loss_dict = {k: train_loss_dict.get(k, 0.0) + v.item() for k, v in cur_loss_dict.items()}
             if it % (save_every_it + 1) == 0:
@@ -172,9 +184,12 @@ class VPoserTrainer:
                 print("Eval Training Epoch {}".format(epoch_num))
                 if eval_loss_dict['loss_total'] < self.best_loss_total:
                     self.best_model_fname = os.path.join('snapshots', 'E%03d.pt' % (self.epochs_completed))
+                    
+                    # Ensure the directory exists
                     output_dir = os.path.dirname(self.best_model_fname)
                     if not os.path.exists(output_dir):
                         os.makedirs(output_dir)
+                        
                     self.best_loss_total = eval_loss_dict['loss_total']
                     torch.save(self.vposer_model.state_dict(), self.best_model_fname)
                     print("Loss {} is less, save model to {}".format(self.best_loss_total, self.best_model_fname))
