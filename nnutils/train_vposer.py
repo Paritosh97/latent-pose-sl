@@ -171,8 +171,10 @@ class VPoserTrainer:
             with torch.no_grad():
                 print("Eval Training Epoch {}".format(epoch_num))
                 if eval_loss_dict['loss_total'] < self.best_loss_total:
-                    self.best_model_fname = os.path.join('snapshots', 'E%03d.pt' % (
-                    self.epochs_completed))
+                    self.best_model_fname = os.path.join('snapshots', 'E%03d.pt' % (self.epochs_completed))
+                    output_dir = os.path.dirname(self.best_model_fname)
+                    if not os.path.exists(output_dir):
+                        os.makedirs(output_dir)
                     self.best_loss_total = eval_loss_dict['loss_total']
                     torch.save(self.vposer_model.state_dict(), self.best_model_fname)
                     print("Loss {} is less, save model to {}".format(self.best_loss_total, self.best_model_fname))
