@@ -12,7 +12,7 @@ class VPoserPredictor(nn.Module):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         self.ske = Skeleton(skeleton_path=skeleton_path)
-        self.vposer = VPoser(512, 32, (1, 59, 3))
+        self.vposer = VPoser(512, 32, (1,  self.ske.J_num, 3))
 
         # Load the model state dict with the appropriate device
         self.vposer.load_state_dict(torch.load(vposer_path, map_location=self.device))

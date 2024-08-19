@@ -27,8 +27,8 @@ app = Flask(__name__)
 
 device = torch.device("cpu")
 
-SKELETON = "skeleton.pt"
-VPOSER   = "vposer_sl.pt"
+SKELETON = "skeleton_azee.pt"
+VPOSER   = "vposer_azee.pt"
 model = VPoserPredictor(skeleton_path=SKELETON, vposer_path=VPOSER)
 model.to(device)
 optimizer = optim.Adam([model.pose_embedding, model.global_trans], lr=3e-1)
