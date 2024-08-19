@@ -1,19 +1,12 @@
-# -*- coding: utf-8 -*-
-#
-# Author: maajor <info@ma-yidong.com>
-# Date : 2020-05-23
-# 
-# Blender plugin to fetch predicted pose from server and apply on armature
-
 bl_info = {
     "name": "Latent IK",
-    "author": "Ma Yi Dong <info@ma-yidong.com>",
+    "author": "Paritosh Sharma <paritosh.sharmas@gmail.com>",
     "version": (0, 0, 1),
     "blender": (4, 2, 0),
     "location": "3D View > Sidebar > Latent IK",
     "description": "IK",
     "warning": "",
-    "wiki_url": "https://github.com/maajor/latent-pose",
+    "wiki_url": "https://github.com/Paritosh97/latent-pose-sl",
     "category": "Animation",
 }
 
@@ -30,8 +23,6 @@ from bpy.props import (
 from bpy.app.handlers import persistent
 
 import requests
-import numpy as np
-
 
 # Property Definitions
 class LatentIKProperty(bpy.types.PropertyGroup):
@@ -53,16 +44,6 @@ class LatentIKProperty(bpy.types.PropertyGroup):
     key_head_ik_enable: BoolProperty(
         name="Head IK Enable",
         description="Head IK Enable",
-        default=True
-    )
-    key_lfoot_ik_enable: BoolProperty(
-        name="LeftFoot IK Enable",
-        description="LeftFoot IK Enable",
-        default=True
-    )
-    key_rfoot_ik_enable: BoolProperty(
-        name="RightFoot IK Enable",
-        description="RightFoot IK Enable",
         default=True
     )
     server_address: StringProperty(
@@ -89,16 +70,6 @@ class LatentIKProperty(bpy.types.PropertyGroup):
         name="Hip IK Controller",
         description="Hip IK Controller",
         default="HipController"
-    )
-    controller_lfoot_ik_name: StringProperty(
-        name="LeftFoot IK Controller",
-        description="LeftFoot IK Controller",
-        default="LeftFootController"
-    )
-    controller_rfoot_ik_name: StringProperty(
-        name="RightFoot IK Controller",
-        description="RightFoot IK Controller",
-        default="RightFootController"
     )
     armature_name: StringProperty(
         name="Armature Name",
@@ -138,9 +109,6 @@ class VIEW3D_PT_LatentIKUI(Panel):
         row.prop(latentik_properties, "key_rhand_ik_enable")
         row = col.row()
         row.prop(latentik_properties, "key_hip_ik_enable")
-        row = col.row()
-        row.prop(latentik_properties, "key_lfoot_ik_enable")
-        row.prop(latentik_properties, "key_rfoot_ik_enable")
         layout.separator()
         row = col.row()
         row.operator("anim.latentik_get_pose", icon="KEY_HLT")
@@ -159,12 +127,51 @@ class ANIM_OT_latentik_get_pose(Operator):
     bl_idname = "anim.latentik_get_pose"
     bl_description = "Get Pose (Ctrl+P)"
     bl_options = {'REGISTER', 'UNDO'}
-    mapping = {'Head': 16, 'Hips': 0, 'LHipJoint': 1, 'LThumb': 23, 'LeftArm': 18, 
-    'LeftFingerBase': 21, 'LeftFoot': 4, 'LeftForeArm': 19, 'LeftHand': 20, 'LeftHandIndex1': 22, 
-    'LeftLeg': 3, 'LeftShoulder': 17, 'LeftToeBase': 5, 'LeftUpLeg': 2, 'LowerBack': 11, 'Neck': 14, 
-    'Neck1': 15, 'RHipJoint': 6, 'RThumb': 30, 'RightArm': 25, 'RightFingerBase': 28, 'RightFoot': 9, 
-    'RightForeArm': 26, 'RightHand': 27, 'RightHandIndex1': 29, 'RightLeg': 8, 'RightShoulder': 24, 
-    'RightToeBase': 10, 'RightUpLeg': 7, 'Spine': 12, 'Spine1': 13}
+
+    bones = ["mixamorig:Spine1.001",
+    "mixamorig:Spine2.001",
+    "mixamorig:Neck.001",
+    "mixamorig:Head.001",
+    "mixamorig:LeftShoulder.001",
+    "mixamorig:LeftArm.001",
+    "mixamorig:LeftForeArm.001",
+    "mixamorig:LeftHand.001",
+    "mixamorig:LeftHandThumb1.001",
+    "mixamorig:LeftHandThumb2.001",
+    "mixamorig:LeftHandThumb3.001",
+    "mixamorig:LeftHandIndex1.001",
+    "mixamorig:LeftHandIndex2.001",
+    "mixamorig:LeftHandIndex3.001",
+    "mixamorig:LeftHandMiddle1.001",
+    "mixamorig:LeftHandMiddle2.001",
+    "mixamorig:LeftHandMiddle3.001",
+    "mixamorig:LeftHandRing1.001",
+    "mixamorig:LeftHandRing2.001",
+    "mixamorig:LeftHandRing3.001",
+    "mixamorig:LeftHandPinky1.001",
+    "mixamorig:LeftHandPinky2.001",
+    "mixamorig:LeftHandPinky3.001",
+    "mixamorig:RightShoulder.001",
+    "mixamorig:RightArm.001",
+    "mixamorig:RightForeArm.001",
+    "mixamorig:RightHand.001",
+    "mixamorig:RightHandThumb1.001",
+    "mixamorig:RightHandThumb2.001",
+    "mixamorig:RightHandThumb3.001",
+    "mixamorig:RightHandIndex1.001",
+    "mixamorig:RightHandIndex2.001",
+    "mixamorig:RightHandIndex3.001",
+    "mixamorig:RightHandMiddle1.001",
+    "mixamorig:RightHandMiddle2.001",
+    "mixamorig:RightHandMiddle3.001",
+    "mixamorig:RightHandRing1.001",
+    "mixamorig:RightHandRing2.001",
+    "mixamorig:RightHandRing3.001",
+    "mixamorig:RightHandPinky1.001",
+    "mixamorig:RightHandPinky2.001",
+    "mixamorig:RightHandPinky3.001"]
+
+    mapping = dict(zip(bones, range(0, 42)))
 
     def execute(op, context):
         latentik_properties = context.window_manager.latentik_properties
@@ -190,16 +197,6 @@ class ANIM_OT_latentik_get_pose(Operator):
         if latentik_properties.key_head_ik_enable:
             pos = bpy.data.objects[latentik_properties.controller_head_ik_name].location
             joint_ids.append(op.mapping["Head"])
-            joint_pos.extend(pos)
-
-        if latentik_properties.key_lfoot_ik_enable:
-            pos = bpy.data.objects[latentik_properties.controller_lfoot_ik_name].location
-            joint_ids.append(op.mapping["LeftFoot"])
-            joint_pos.extend(pos)
-
-        if latentik_properties.key_rfoot_ik_enable:
-            pos = bpy.data.objects[latentik_properties.controller_rfoot_ik_name].location
-            joint_ids.append(op.mapping["RightFoot"])
             joint_pos.extend(pos)
 
         param_dict = {}
