@@ -133,7 +133,9 @@ data/raw
 data/extracted
 data/train
 snapshots/
+checkpoints/
 *.blend1
+*.blend
 joints.pkl
 pose.pkl
 
