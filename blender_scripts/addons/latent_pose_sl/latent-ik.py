@@ -1,5 +1,5 @@
 bl_info = {
-    "name": "Latent IK",
+    "name": "Latent IK SL",
     "author": "Paritosh Sharma <paritosh.sharmas@gmail.com>",
     "version": (0, 0, 1),
     "blender": (4, 2, 0),
@@ -12,17 +12,14 @@ bl_info = {
 
 import bpy
 from bpy.types import (
-        Operator,
-        Panel,
-        AddonPreferences,
-        )
+    Operator,
+    Panel,
+    AddonPreferences,
+)
 from bpy.props import (
-        BoolProperty,
-        StringProperty,
-        )
-from bpy.app.handlers import persistent
-
-import requests
+    BoolProperty,
+    StringProperty,
+)
 
 # Property Definitions
 class LatentIKProperty(bpy.types.PropertyGroup):
@@ -45,11 +42,6 @@ class LatentIKProperty(bpy.types.PropertyGroup):
         name="Head IK Enable",
         description="Head IK Enable",
         default=True
-    )
-    server_address: StringProperty(
-        name="Server Address",
-        description="Server Address",
-        default="127.0.0.1:1028"
     )
     controller_head_ik_name: StringProperty(
         name="Head IK Controller",
@@ -99,7 +91,6 @@ class VIEW3D_PT_LatentIKUI(Panel):
         row = col.row()
         row.label(text='Latent IK Controller', icon="INFO")
         row = col.row()
-        row.prop(latentik_properties, "server_address")
         col.separator()
 
         row = col.row()
@@ -114,62 +105,56 @@ class VIEW3D_PT_LatentIKUI(Panel):
         row.operator("anim.latentik_get_pose", icon="KEY_HLT")
 
 
-param_dict = {}
-param_dict["joint_pos"] =  [0, 0, 0,-2, 6, 6, 1, -1, 7]
-param_dict["joint_id"] = [0, 20, 16] # left hand and head
-resp = requests.get("http://127.0.0.1:1028/predict",
-                     params=param_dict)
-result = resp.json()
-print(result)
-
 class ANIM_OT_latentik_get_pose(Operator):
     bl_label = "Get Pose (Ctrl+P)"
     bl_idname = "anim.latentik_get_pose"
     bl_description = "Get Pose (Ctrl+P)"
     bl_options = {'REGISTER', 'UNDO'}
 
-    bones = ["mixamorig:Spine1.001",
-    "mixamorig:Spine2.001",
-    "mixamorig:Neck.001",
-    "mixamorig:Head.001",
-    "mixamorig:LeftShoulder.001",
-    "mixamorig:LeftArm.001",
-    "mixamorig:LeftForeArm.001",
-    "mixamorig:LeftHand.001",
-    "mixamorig:LeftHandThumb1.001",
-    "mixamorig:LeftHandThumb2.001",
-    "mixamorig:LeftHandThumb3.001",
-    "mixamorig:LeftHandIndex1.001",
-    "mixamorig:LeftHandIndex2.001",
-    "mixamorig:LeftHandIndex3.001",
-    "mixamorig:LeftHandMiddle1.001",
-    "mixamorig:LeftHandMiddle2.001",
-    "mixamorig:LeftHandMiddle3.001",
-    "mixamorig:LeftHandRing1.001",
-    "mixamorig:LeftHandRing2.001",
-    "mixamorig:LeftHandRing3.001",
-    "mixamorig:LeftHandPinky1.001",
-    "mixamorig:LeftHandPinky2.001",
-    "mixamorig:LeftHandPinky3.001",
-    "mixamorig:RightShoulder.001",
-    "mixamorig:RightArm.001",
-    "mixamorig:RightForeArm.001",
-    "mixamorig:RightHand.001",
-    "mixamorig:RightHandThumb1.001",
-    "mixamorig:RightHandThumb2.001",
-    "mixamorig:RightHandThumb3.001",
-    "mixamorig:RightHandIndex1.001",
-    "mixamorig:RightHandIndex2.001",
-    "mixamorig:RightHandIndex3.001",
-    "mixamorig:RightHandMiddle1.001",
-    "mixamorig:RightHandMiddle2.001",
-    "mixamorig:RightHandMiddle3.001",
-    "mixamorig:RightHandRing1.001",
-    "mixamorig:RightHandRing2.001",
-    "mixamorig:RightHandRing3.001",
-    "mixamorig:RightHandPinky1.001",
-    "mixamorig:RightHandPinky2.001",
-    "mixamorig:RightHandPinky3.001"]
+    bones = [
+        "mixamorig:Spine1.001",
+        "mixamorig:Spine2.001",
+        "mixamorig:Neck.001",
+        "mixamorig:Head.001",
+        "mixamorig:LeftShoulder.001",
+        "mixamorig:LeftArm.001",
+        "mixamorig:LeftForeArm.001",
+        "mixamorig:LeftHand.001",
+        "mixamorig:LeftHandThumb1.001",
+        "mixamorig:LeftHandThumb2.001",
+        "mixamorig:LeftHandThumb3.001",
+        "mixamorig:LeftHandIndex1.001",
+        "mixamorig:LeftHandIndex2.001",
+        "mixamorig:LeftHandIndex3.001",
+        "mixamorig:LeftHandMiddle1.001",
+        "mixamorig:LeftHandMiddle2.001",
+        "mixamorig:LeftHandMiddle3.001",
+        "mixamorig:LeftHandRing1.001",
+        "mixamorig:LeftHandRing2.001",
+        "mixamorig:LeftHandRing3.001",
+        "mixamorig:LeftHandPinky1.001",
+        "mixamorig:LeftHandPinky2.001",
+        "mixamorig:LeftHandPinky3.001",
+        "mixamorig:RightShoulder.001",
+        "mixamorig:RightArm.001",
+        "mixamorig:RightForeArm.001",
+        "mixamorig:RightHand.001",
+        "mixamorig:RightHandThumb1.001",
+        "mixamorig:RightHandThumb2.001",
+        "mixamorig:RightHandThumb3.001",
+        "mixamorig:RightHandIndex1.001",
+        "mixamorig:RightHandIndex2.001",
+        "mixamorig:RightHandIndex3.001",
+        "mixamorig:RightHandMiddle1.001",
+        "mixamorig:RightHandMiddle2.001",
+        "mixamorig:RightHandMiddle3.001",
+        "mixamorig:RightHandRing1.001",
+        "mixamorig:RightHandRing2.001",
+        "mixamorig:RightHandRing3.001",
+        "mixamorig:RightHandPinky1.001",
+        "mixamorig:RightHandPinky2.001",
+        "mixamorig:RightHandPinky3.001"
+    ]
 
     mapping = dict(zip(bones, range(0, 42)))
 
@@ -181,34 +166,31 @@ class ANIM_OT_latentik_get_pose(Operator):
 
         if latentik_properties.key_hip_ik_enable:
             pos = bpy.data.objects[latentik_properties.controller_hip_ik_name].location
-            joint_ids.append(op.mapping["Hips"])
+            joint_ids.append(op.mapping["mixamorig:Spine1.001"])  # Adjust mapping accordingly
             joint_pos.extend(pos)
 
         if latentik_properties.key_lhand_ik_enable:
             pos = bpy.data.objects[latentik_properties.controller_lhand_ik_name].location
-            joint_ids.append(op.mapping["LeftHand"])
+            joint_ids.append(op.mapping["mixamorig:LeftHand.001"])
             joint_pos.extend(pos)
 
         if latentik_properties.key_rhand_ik_enable:
             pos = bpy.data.objects[latentik_properties.controller_rhand_ik_name].location
-            joint_ids.append(op.mapping["RightHand"])
+            joint_ids.append(op.mapping["mixamorig:RightHand.001"])
             joint_pos.extend(pos)
         
         if latentik_properties.key_head_ik_enable:
             pos = bpy.data.objects[latentik_properties.controller_head_ik_name].location
-            joint_ids.append(op.mapping["Head"])
+            joint_ids.append(op.mapping["mixamorig:Head.001"])
             joint_pos.extend(pos)
 
-        param_dict = {}
-        param_dict["joint_pos"] =  joint_pos
-        param_dict["joint_id"] = joint_ids
-
-        result = op.query_pose_from_server(latentik_properties.server_address, param_dict)
+        # Process the pose directly in Blender
+        result = op.calculate_pose(joint_ids, joint_pos)
 
         arm = bpy.data.objects[latentik_properties.armature_name]
         if arm is None:
             for ob in bpy.data.objects:
-                if ob.type is "ARMATURE":
+                if ob.type == "ARMATURE":
                     arm = ob
                     latentik_properties.armature_name = ob.name
 
@@ -216,30 +198,32 @@ class ANIM_OT_latentik_get_pose(Operator):
 
         return {'FINISHED'}
 
-    def query_pose_from_server(self, server_address, param_dict):
-        resp = requests.get("http://{0}/predict".format(server_address),
-                     params=param_dict)
-        result = resp.json()
-        return result
+    def calculate_pose(self, joint_ids, joint_pos):
+        # Dummy calculation logic - this should be replaced with actual IK processing logic
+        # Here we just return some mock data
+        rot = [[1, 0, 0, 0]] * 42  # Replace with actual rotations
+        trans = [0, 0, 0]  # Replace with actual translation
+        return {"pose": rot, "trans": trans}
 
     def apply_pose(self, arm, pose_param):
         rot = pose_param["pose"]
         trans = pose_param["trans"]
         arm.location = trans
         for pbone in arm.pose.bones:
-            this_bone_id = self.mapping[pbone.name]
-            rotation = rot[this_bone_id]
-            pbone.rotation_mode = "AXIS_ANGLE"
-            pbone.rotation_axis_angle = rotation
-            pbone.scale = [1,1,1]
+            this_bone_id = self.mapping.get(pbone.name)
+            if this_bone_id is not None:
+                rotation = rot[this_bone_id]
+                pbone.rotation_mode = "AXIS_ANGLE"
+                pbone.rotation_axis_angle = rotation
+                pbone.scale = [1, 1, 1]
 
 
 # Add-ons Preferences Update Panel
 
 # Define Panel classes for updating
 panels = [
-        VIEW3D_PT_LatentIKUI
-        ]
+    VIEW3D_PT_LatentIKUI
+]
 
 
 def update_panel(self, context):
@@ -289,7 +273,7 @@ def register():
     wm = bpy.context.window_manager
     km = wm.keyconfigs.addon.keymaps.new(name='Object Mode', space_type='EMPTY')
     # Ctrl+P for shortcut
-    kmi = km.keymap_items.new("anim.latentik_get_pose", type = "P", ctrl=True, value = "PRESS")
+    kmi = km.keymap_items.new("anim.latentik_get_pose", type="P", ctrl=True, value="PRESS")
     addon_keymaps.append(km)
     update_panel(None, bpy.context)
 
