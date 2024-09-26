@@ -13,7 +13,7 @@ from torch.nn import Module
 import os
 
 class Skeleton(Module):
-  def __init__(self, skeleton_path='data/skeleton.pt'):
+  def __init__(self, skeleton_path):
     
     super(Skeleton, self).__init__()
     with open(skeleton_path, 'rb') as f:
@@ -133,7 +133,7 @@ def main():
 
   theta = torch.sqrt(torch.sum((pose)**2, dim=2)).view(1, -1, 1)
   r_hat = pose / theta
-  aa = torch.zeros((31,4))
+  aa = torch.zeros((42,4))
   aa[:,0:1] = theta.view(-1,1)
   aa[:,1:] = r_hat.view(-1,3)
 

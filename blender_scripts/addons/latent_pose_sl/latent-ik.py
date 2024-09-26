@@ -2,7 +2,7 @@ bl_info = {
     "name": "Latent IK SL",
     "author": "Paritosh Sharma <paritosh.sharmas@gmail.com>",
     "version": (0, 0, 1),
-    "blender": (4, 2, 0),
+    "blender": (4, 0, 0),
     "location": "3D View > Sidebar > Latent IK",
     "description": "IK",
     "warning": "",
@@ -11,6 +11,7 @@ bl_info = {
 }
 
 import bpy
+import requests
 from bpy.types import (
     Operator,
     Panel,
@@ -23,11 +24,7 @@ from bpy.props import (
 
 # Property Definitions
 class LatentIKProperty(bpy.types.PropertyGroup):
-    key_hip_ik_enable: BoolProperty(
-        name="Hip IK Enable",
-        description="Hip IK Enable",
-        default=True
-    )
+   
     key_lhand_ik_enable: BoolProperty(
         name="LeftHand IK Enable",
         description="LeftHand IK Enable",
@@ -58,15 +55,15 @@ class LatentIKProperty(bpy.types.PropertyGroup):
         description="RightHand IK Controller",
         default="RightHandController"
     )
-    controller_hip_ik_name: StringProperty(
-        name="Hip IK Controller",
-        description="Hip IK Controller",
-        default="HipController"
-    )
     armature_name: StringProperty(
         name="Armature Name",
         description="Armature Name",
-        default="character"
+        default="BAZeel"
+    )
+    server_address: StringProperty(
+        name="Server Address",
+        description="Server Address",
+        default="127.0.0.1:1028"
     )
 
 # GUI (Panel)
@@ -99,16 +96,15 @@ class VIEW3D_PT_LatentIKUI(Panel):
         row.prop(latentik_properties, "key_lhand_ik_enable")
         row.prop(latentik_properties, "key_rhand_ik_enable")
         row = col.row()
-        row.prop(latentik_properties, "key_hip_ik_enable")
         layout.separator()
         row = col.row()
         row.operator("anim.latentik_get_pose", icon="KEY_HLT")
 
 
 class ANIM_OT_latentik_get_pose(Operator):
-    bl_label = "Get Pose (Ctrl+P)"
+    bl_label = "Get Pose (Ctrl+D)"
     bl_idname = "anim.latentik_get_pose"
-    bl_description = "Get Pose (Ctrl+P)"
+    bl_description = "Get Pose (Ctrl+D)"
     bl_options = {'REGISTER', 'UNDO'}
 
     bones = [
@@ -164,11 +160,6 @@ class ANIM_OT_latentik_get_pose(Operator):
         joint_ids = []
         joint_pos = []
 
-        if latentik_properties.key_hip_ik_enable:
-            pos = bpy.data.objects[latentik_properties.controller_hip_ik_name].location
-            joint_ids.append(op.mapping["mixamorig:Spine1.001"])  # Adjust mapping accordingly
-            joint_pos.extend(pos)
-
         if latentik_properties.key_lhand_ik_enable:
             pos = bpy.data.objects[latentik_properties.controller_lhand_ik_name].location
             joint_ids.append(op.mapping["mixamorig:LeftHand.001"])
@@ -184,13 +175,16 @@ class ANIM_OT_latentik_get_pose(Operator):
             joint_ids.append(op.mapping["mixamorig:Head.001"])
             joint_pos.extend(pos)
 
-        # Process the pose directly in Blender
-        result = op.calculate_pose(joint_ids, joint_pos)
+        param_dict = {}
+        param_dict["joint_pos"] =  joint_pos
+        param_dict["joint_id"] = joint_ids
+
+        result = op.query_pose_from_server(latentik_properties.server_address, param_dict)
 
         arm = bpy.data.objects[latentik_properties.armature_name]
         if arm is None:
             for ob in bpy.data.objects:
-                if ob.type == "ARMATURE":
+                if ob.type is "ARMATURE":
                     arm = ob
                     latentik_properties.armature_name = ob.name
 
@@ -198,24 +192,23 @@ class ANIM_OT_latentik_get_pose(Operator):
 
         return {'FINISHED'}
 
-    def calculate_pose(self, joint_ids, joint_pos):
-        # Dummy calculation logic - this should be replaced with actual IK processing logic
-        # Here we just return some mock data
-        rot = [[1, 0, 0, 0]] * 42  # Replace with actual rotations
-        trans = [0, 0, 0]  # Replace with actual translation
-        return {"pose": rot, "trans": trans}
+    def query_pose_from_server(self, server_address, param_dict):
+        resp = requests.get("http://{0}/predict".format(server_address),
+                     params=param_dict)
+        result = resp.json()
+        return result
 
     def apply_pose(self, arm, pose_param):
         rot = pose_param["pose"]
         trans = pose_param["trans"]
         arm.location = trans
         for pbone in arm.pose.bones:
-            this_bone_id = self.mapping.get(pbone.name)
-            if this_bone_id is not None:
+            if pbone.name in self.mapping:
+                this_bone_id = self.mapping[pbone.name]
                 rotation = rot[this_bone_id]
                 pbone.rotation_mode = "AXIS_ANGLE"
                 pbone.rotation_axis_angle = rotation
-                pbone.scale = [1, 1, 1]
+                pbone.scale = [1,1,1]
 
 
 # Add-ons Preferences Update Panel
@@ -272,8 +265,8 @@ def register():
     global addon_keymaps
     wm = bpy.context.window_manager
     km = wm.keyconfigs.addon.keymaps.new(name='Object Mode', space_type='EMPTY')
-    # Ctrl+P for shortcut
-    kmi = km.keymap_items.new("anim.latentik_get_pose", type="P", ctrl=True, value="PRESS")
+    # Ctrl+D for shortcut
+    kmi = km.keymap_items.new("anim.latentik_get_pose", type="D", ctrl=True, value="PRESS")
     addon_keymaps.append(km)
     update_panel(None, bpy.context)
 

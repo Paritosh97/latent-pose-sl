@@ -138,5 +138,6 @@ checkpoints/
 *.blend
 joints.pkl
 pose.pkl
+blender_config/
 
 .vscode/

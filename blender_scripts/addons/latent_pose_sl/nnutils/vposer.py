@@ -23,7 +23,7 @@ from torch import nn, optim
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 
-from geoutils import *
+from .geoutils import *
 
 class ContinousRotReprDecoder(nn.Module):
     def __init__(self):
